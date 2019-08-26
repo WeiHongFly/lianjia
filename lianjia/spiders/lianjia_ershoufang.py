@@ -44,6 +44,7 @@ class LianJiaErShouFang(scrapy.Spider):
             item["city_ershoufang_chengjiao_href"] = href_chengjiao
             yield scrapy.Request(href_chengjiao, self.parse_city_chengjiao, meta={"item": item})
         else:
+            self.logger.warning("%s does not have chengjiao data" % item["city"])
             yield item
 
     def parse_city_chengjiao(self, response):
