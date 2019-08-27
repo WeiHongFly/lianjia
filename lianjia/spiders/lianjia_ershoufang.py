@@ -17,7 +17,8 @@ class LianJiaErShouFang(scrapy.Spider):
             yield scrapy.Request(url=url, callback=self.parse)
 
     def parse(self, response):
-        for p in response.xpath('//li[@class="city_list_li city_list_li_selected"]/div[@class="city_list"]/div[@class="city_province"]'):
+        for p in response.xpath(
+                '//li[@class="city_list_li city_list_li_selected"]/div[@class="city_list"]/div[@class="city_province"]'):
             province = p.xpath('div/text()').get()
             for c in p.xpath('ul/li/a'):
                 item = LianjiaItem()
@@ -32,7 +33,7 @@ class LianJiaErShouFang(scrapy.Spider):
                 else:
                     href_zaishou = href + "ershoufang/"  # 有二手房页面一定有在售页面，不一定有成交页面。
                     item["city_ershoufang_zaishou_href"] = href_zaishou
-                    yield scrapy.Request(href_zaishou, self.parse_city_zaishou, meta={"item": item})
+                    yield scrapy.Request(href_zaishou, self.parse_city_zaishou, meta={"item": item, "href": href})
 
     def parse_city_zaishou(self, response):
         item = response.meta["item"]
@@ -42,13 +43,33 @@ class LianJiaErShouFang(scrapy.Spider):
         if href_chengjiao:
             href_chengjiao = response.urljoin(href_chengjiao)
             item["city_ershoufang_chengjiao_href"] = href_chengjiao
-            yield scrapy.Request(href_chengjiao, self.parse_city_chengjiao, meta={"item": item})
+            yield scrapy.Request(href_chengjiao, self.parse_city_chengjiao,
+                                 meta={"item": item, "href": response.meta["href"]})
         else:
             self.logger.warning("%s does not have chengjiao data" % item["city"])
             yield item
 
     def parse_city_chengjiao(self, response):
         item = response.meta["item"]
-        ershoufang_chengjiao_cnt = response.xpath('//div[@class="resultDes clear"]/div[@class="total fl"]/span/text()').get()
+        ershoufang_chengjiao_cnt = response.xpath(
+            '//div[@class="resultDes clear"]/div[@class="total fl"]/span/text()').get()
         item["city_ershoufang_chengjiao"] = ershoufang_chengjiao_cnt if ershoufang_chengjiao_cnt else None
+        # 检查是否有小区数据
+        xiaoqu = response.xpath('//div[@class="menuLeft"]/ul[@class="typeList"]/li/a[text()="小区"]/@href').get()
+        if xiaoqu:
+            href_xiaoqu = "xiaoqu/?from=rec"
+            city_ershoufang_xiaoqu_href = response.meta["href"] + href_xiaoqu
+            item["city_ershoufang_xiaoqu_href"] = city_ershoufang_xiaoqu_href
+
+            yield scrapy.Request(city_ershoufang_xiaoqu_href, self.parse_city_xiaoqu,
+                                 meta={"item": item, "href": response.meta["href"]})
+        else:
+            self.logger.warning("%s does not have xiaoqu page" % item["city"])
+            yield item
+
+    def parse_city_xiaoqu(self, response):
+        item = response.meta["item"]
+        ershoufang_xiaoqu_cnt = response.xpath(
+            '//div[@class="resultDes clear"]/h2[@class="total fl"]/span/text()').get()
+        item["city_ershoufang_xiaoqu"] = ershoufang_xiaoqu_cnt if ershoufang_xiaoqu_cnt else None
         yield item
